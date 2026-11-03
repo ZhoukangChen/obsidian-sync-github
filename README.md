@@ -8,6 +8,7 @@
 - 通过 GitHub API 同步，iPad / iPhone / 桌面都能用
 - 在 GitHub 上生成真正的 commit，保留提交历史
 - 支持手动同步、启动时拉取、定时同步
+- 手动同步时显示进度窗口：文件数量、已下载大小、当前文件，可取消
 - 支持文本和附件（受 GitHub 单文件 100MB 限制）
 - 冲突时弹窗选择“保留本地”或“保留远端”
 - Token 保存在 Obsidian 的 SecretStorage 中，不写进笔记

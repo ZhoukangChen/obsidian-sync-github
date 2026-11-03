@@ -12,10 +12,13 @@ import type {
   PushResult,
   RemoteFile,
   RemoteState,
+  SyncOptions,
+  SyncProgress,
   SyncResult,
 } from "./types";
 import {
   createIgnoreMatcher,
+  delay,
   ensureFolder,
   normalizePath,
   parentPath,
@@ -42,6 +45,13 @@ export class SyncConflictError extends Error {
     this.name = "SyncConflictError";
     this.conflicts = conflicts;
     this.headSha = headSha;
+  }
+}
+
+export class SyncCancelledError extends Error {
+  constructor() {
+    super("同步已取消");
+    this.name = "SyncCancelledError";
   }
 }
 
@@ -80,8 +90,9 @@ export class SyncEngine {
     return `连接成功：${info.owner}/${info.repo}，默认分支 ${info.defaultBranch}`;
   }
 
-  async pull(): Promise<PullResult> {
+  async pull(options: SyncOptions = {}): Promise<PullResult> {
     this.host.setStatus("正在拉取…");
+    this.report(options, "checking", 0, 0, 0, 0);
     const client = this.client();
     const remote = await this.fetchRemoteState(client);
     const local = await this.scanLocal();
@@ -89,18 +100,35 @@ export class SyncEngine {
 
     const updated: string[] = [];
     const deleted: string[] = [];
-
+    const total = compare.pull.length;
+    const bytesTotal = compare.pull.reduce(
+      (sum, action) => sum + (action.remote?.size || 0),
+      0
+    );
     let done = 0;
-    await mapLimit(compare.pull, 4, async (action) => {
+    let bytesDone = 0;
+
+    this.report(options, "pulling", 0, total, 0, bytesTotal);
+    await mapLimit(compare.pull, 6, async (action) => {
+      this.checkCancelled(options);
       if (action.remote) {
         await this.downloadFile(client, action.remote, remote.headSha);
         updated.push(action.path);
+        bytesDone += action.remote.size || 0;
       } else {
         await this.deleteLocal(action.path);
         deleted.push(action.path);
       }
       done++;
-      this.host.setStatus(`正在拉取 ${done}/${compare.pull.length}…`);
+      this.report(
+        options,
+        "pulling",
+        done,
+        total,
+        bytesDone,
+        bytesTotal,
+        action.path
+      );
     });
 
     const changedLocal = updated.length > 0 || deleted.length > 0;
@@ -123,6 +151,15 @@ export class SyncEngine {
       this.host.setStatus(`有 ${conflicts.length} 个冲突`);
     }
 
+    this.report(
+      options,
+      "done",
+      updated.length + deleted.length,
+      total,
+      bytesTotal,
+      bytesTotal
+    );
+
     return {
       headSha: remote.headSha,
       updated,
@@ -137,8 +174,9 @@ export class SyncEngine {
     };
   }
 
-  async push(): Promise<PushResult> {
+  async push(options: SyncOptions = {}): Promise<PushResult> {
     this.host.setStatus("正在推送…");
+    this.report(options, "checking", 0, 0, 0, 0);
     const client = this.client();
     const remote = await this.fetchRemoteState(client);
     const local = await this.scanLocal();
@@ -160,6 +198,7 @@ export class SyncEngine {
       this.settings.lastIgnorePatterns = this.settings.ignorePatterns;
       await this.host.save();
       this.host.setStatus("已同步");
+      this.report(options, "done", 0, 0, 0, 0);
       return {
         commitSha: remote.headSha,
         changed: 0,
@@ -174,10 +213,18 @@ export class SyncEngine {
       sha: string | null;
     }> = [];
 
+    const total = compare.push.length;
+    const bytesTotal = compare.push.reduce(
+      (sum, action) => sum + (action.local?.size || 0),
+      0
+    );
+    let bytesDone = 0;
+
+    this.report(options, "pushing", 0, total, 0, bytesTotal);
     let index = 0;
     for (const action of compare.push) {
+      this.checkCancelled(options);
       index++;
-      this.host.setStatus(`正在上传 ${index}/${compare.push.length}…`);
       if (!action.local) {
         entries.push({
           path: action.path,
@@ -185,18 +232,29 @@ export class SyncEngine {
           type: "blob",
           sha: null,
         });
-        continue;
+      } else {
+        const bytes = await this.adapter.readBinary(action.local.path);
+        const blobSha = await this.createBlobWithRetry(client, bytes, options);
+        entries.push({
+          path: action.path,
+          mode: "100644",
+          type: "blob",
+          sha: blobSha,
+        });
+        bytesDone += action.local.size || 0;
       }
-      const bytes = await this.adapter.readBinary(action.local.path);
-      const blobSha = await client.createBlob(bytes);
-      entries.push({
-        path: action.path,
-        mode: "100644",
-        type: "blob",
-        sha: blobSha,
-      });
+      this.report(
+        options,
+        "pushing",
+        index,
+        total,
+        bytesDone,
+        bytesTotal,
+        action.path
+      );
     }
 
+    this.checkCancelled(options);
     const treeSha = await client.createTree(remote.treeSha || undefined, entries);
     const message = renderCommitMessage(
       this.settings.commitMessage,
@@ -229,6 +287,7 @@ export class SyncEngine {
     await this.host.save();
     this.host.setStatus("已同步");
     this.host.notify(`推送完成：${entries.length} 个文件。`, 5000);
+    this.report(options, "done", total, total, bytesTotal, bytesTotal);
 
     return {
       commitSha,
@@ -237,8 +296,8 @@ export class SyncEngine {
     };
   }
 
-  async sync(): Promise<SyncResult> {
-    const pullResult = await this.pull();
+  async sync(options: SyncOptions = {}): Promise<SyncResult> {
+    const pullResult = await this.pull(options);
     if (pullResult.conflicts.length) {
       return {
         pull: pullResult,
@@ -248,7 +307,7 @@ export class SyncEngine {
     }
 
     try {
-      const pushResult = await this.push();
+      const pushResult = await this.push(options);
       return {
         pull: pullResult,
         push: pushResult,
@@ -459,13 +518,25 @@ export class SyncEngine {
       );
     }
 
-    let bytes: ArrayBuffer;
-    try {
-      bytes = await client.getRawFile(remote.path, ref);
-    } catch {
-      // Raw downloads are much faster and do not consume the API quota.
-      // Fall back to the Git Data API if a provider rejects the raw URL.
-      bytes = await client.getBlob(remote.sha);
+    let bytes: ArrayBuffer | undefined;
+    let lastError: unknown;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        bytes = await client.getRawFile(remote.path, ref);
+        break;
+      } catch (error) {
+        lastError = error;
+        if (attempt < 2) await delay(1000 * (attempt + 1));
+      }
+    }
+    if (!bytes) {
+      try {
+        // Raw downloads are much faster and do not consume the API quota.
+        // Fall back to the Git Data API if a provider rejects the raw URL.
+        bytes = await client.getBlob(remote.sha);
+      } catch {
+        throw lastError;
+      }
     }
 
     await ensureFolder(this.adapter, parentPath(remote.path));
@@ -485,6 +556,49 @@ export class SyncEngine {
       // The file may already be gone.
     }
     delete this.data.cache.files[path];
+  }
+
+  private async createBlobWithRetry(
+    client: GitHubClient,
+    bytes: ArrayBuffer,
+    options: SyncOptions
+  ): Promise<string> {
+    let lastError: unknown;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      this.checkCancelled(options);
+      try {
+        return await client.createBlob(bytes);
+      } catch (error) {
+        lastError = error;
+        if (attempt < 2) await delay(1000 * (attempt + 1));
+      }
+    }
+    throw lastError;
+  }
+
+  private report(
+    options: SyncOptions,
+    phase: SyncProgress["phase"],
+    completed: number,
+    total: number,
+    bytesDone: number,
+    bytesTotal: number,
+    currentPath?: string
+  ): void {
+    options.onProgress?.({
+      phase,
+      completed,
+      total,
+      bytesDone,
+      bytesTotal,
+      currentPath,
+    });
+  }
+
+  private checkCancelled(options: SyncOptions): void {
+    if (options.isCancelled?.()) {
+      throw new SyncCancelledError();
+    }
   }
 }
 

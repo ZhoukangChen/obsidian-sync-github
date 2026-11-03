@@ -120,6 +120,22 @@ export interface SyncResult {
   headSha: string;
 }
 
+export type SyncPhase = "checking" | "pulling" | "pushing" | "done";
+
+export interface SyncProgress {
+  phase: SyncPhase;
+  completed: number;
+  total: number;
+  bytesDone: number;
+  bytesTotal: number;
+  currentPath?: string;
+}
+
+export interface SyncOptions {
+  onProgress?: (progress: SyncProgress) => void;
+  isCancelled?: () => boolean;
+}
+
 export interface RemoteState {
   headSha: string;
   treeSha: string;

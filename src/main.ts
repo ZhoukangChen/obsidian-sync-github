@@ -1,12 +1,20 @@
 import { Notice, Plugin } from "obsidian";
 import { ConflictModal } from "./conflict-modal";
+import { ProgressModal } from "./progress-modal";
 import { SimpleVaultSyncSettingTab } from "./settings";
-import { SyncConflictError, SyncEngine, SyncHost } from "./sync";
+import {
+  SyncCancelledError,
+  SyncConflictError,
+  SyncEngine,
+  SyncHost,
+} from "./sync";
 import {
   DEFAULT_DATA,
   DEFAULT_SETTINGS,
   PluginData,
   PluginSettings,
+  SyncOptions,
+  SyncProgress,
 } from "./types";
 
 export default class SimpleVaultSyncPlugin
@@ -179,16 +187,19 @@ export default class SimpleVaultSyncPlugin
 
     this.syncing = true;
     this.setStatus("正在同步…");
+    const progress = this.createProgress(silent);
     let success = false;
 
     try {
-      const result = await this.engine.sync();
+      const result = await this.engine.sync(progress.options);
       if (result.conflicts.length) {
+        progress.modal?.closeNow();
         await this.handleConflicts(result.conflicts, result.headSha);
       } else {
         const changed = result.push?.changed || 0;
         success = true;
         this.dirty = false;
+        progress.modal?.finish("同步完成");
         if (!silent) {
           this.notify(
             changed > 0
@@ -199,11 +210,23 @@ export default class SimpleVaultSyncPlugin
         }
       }
     } catch (error) {
-      this.handleError(error);
+      if (error instanceof SyncCancelledError) {
+        await this.save();
+        progress.modal?.finish("同步已取消");
+        this.setStatus("已取消");
+        if (!silent) {
+          this.notify(
+            "已取消。已经下载的文件会保留，下次同步会继续。",
+            6000
+          );
+        }
+      } else {
+        progress.modal?.fail(errorMessage(error));
+        this.handleError(error);
+      }
     } finally {
       this.syncing = false;
       if (success) this.dirty = false;
-      this.updateStatus();
     }
   }
 
@@ -216,12 +239,20 @@ export default class SimpleVaultSyncPlugin
 
     this.syncing = true;
     this.setStatus("正在拉取…");
+    const progress = this.createProgress(silent);
     try {
-      const result = await this.engine.pull();
+      const result = await this.engine.pull(progress.options);
       if (result.conflicts.length) {
+        progress.modal?.closeNow();
         await this.handleConflicts(result.conflicts, result.headSha);
       } else {
         this.dirty = result.pendingPush > 0;
+        if (this.dirty) this.setStatus("有本地改动");
+        progress.modal?.finish(
+          result.pendingPush > 0
+            ? "拉取完成（有本地改动未推送）"
+            : "拉取完成"
+        );
         if (!silent) {
           if (result.pendingPush > 0) {
             this.notify(
@@ -237,13 +268,24 @@ export default class SimpleVaultSyncPlugin
             );
           }
         }
-        this.updateStatus();
       }
     } catch (error) {
-      this.handleError(error);
+      if (error instanceof SyncCancelledError) {
+        await this.save();
+        progress.modal?.finish("拉取已取消");
+        this.setStatus("已取消");
+        if (!silent) {
+          this.notify(
+            "已取消。已经下载的文件会保留，下次同步会继续。",
+            6000
+          );
+        }
+      } else {
+        progress.modal?.fail(errorMessage(error));
+        this.handleError(error);
+      }
     } finally {
       this.syncing = false;
-      this.updateStatus();
     }
   }
 
@@ -256,11 +298,13 @@ export default class SimpleVaultSyncPlugin
 
     this.syncing = true;
     this.setStatus("正在推送…");
+    const progress = this.createProgress(silent);
     let success = false;
     try {
-      const result = await this.engine.push();
+      const result = await this.engine.push(progress.options);
       success = true;
       this.dirty = false;
+      progress.modal?.finish("推送完成");
       if (!silent) {
         this.notify(
           result.upToDate
@@ -272,15 +316,53 @@ export default class SimpleVaultSyncPlugin
       this.setStatus("已同步");
     } catch (error) {
       if (error instanceof SyncConflictError) {
+        progress.modal?.closeNow();
         await this.handleConflicts(error.conflicts, error.headSha);
+      } else if (error instanceof SyncCancelledError) {
+        await this.save();
+        progress.modal?.finish("推送已取消");
+        this.setStatus("已取消");
+        if (!silent) this.notify("已取消推送。", 5000);
       } else {
+        progress.modal?.fail(errorMessage(error));
         this.handleError(error);
       }
     } finally {
       this.syncing = false;
       if (success) this.dirty = false;
-      this.updateStatus();
     }
+  }
+
+  private createProgress(silent: boolean): {
+    modal: ProgressModal | null;
+    options: SyncOptions;
+  } {
+    if (silent) {
+      return { modal: null, options: {} };
+    }
+
+    const modal = new ProgressModal(this.app, () => {
+      // The modal's isCancelled() is polled by the sync engine.
+    });
+    modal.open();
+
+    return {
+      modal,
+      options: {
+        onProgress: (progress) => {
+          modal.update(progress);
+          this.setStatus(this.progressText(progress));
+        },
+        isCancelled: () => modal.isCancelled(),
+      },
+    };
+  }
+
+  private progressText(progress: SyncProgress): string {
+    if (progress.phase === "checking") return "正在检查…";
+    if (progress.phase === "done") return "已同步";
+    const action = progress.phase === "pulling" ? "拉取" : "推送";
+    return `${action} ${progress.completed}/${progress.total}`;
   }
 
   private async handleConflicts(
@@ -359,4 +441,8 @@ export default class SimpleVaultSyncPlugin
       this.token = "";
     }
   }
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
