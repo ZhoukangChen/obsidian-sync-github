@@ -90,7 +90,8 @@ export class SyncEngine {
     const updated: string[] = [];
     const deleted: string[] = [];
 
-    for (const action of compare.pull) {
+    let done = 0;
+    await mapLimit(compare.pull, 4, async (action) => {
       if (action.remote) {
         await this.downloadFile(client, action.remote, remote.headSha);
         updated.push(action.path);
@@ -98,7 +99,9 @@ export class SyncEngine {
         await this.deleteLocal(action.path);
         deleted.push(action.path);
       }
-    }
+      done++;
+      this.host.setStatus(`正在拉取 ${done}/${compare.pull.length}…`);
+    });
 
     const changedLocal = updated.length > 0 || deleted.length > 0;
     if (changedLocal) {
@@ -483,6 +486,25 @@ export class SyncEngine {
     }
     delete this.data.cache.files[path];
   }
+}
+
+async function mapLimit<T>(
+  items: T[],
+  limit: number,
+  fn: (item: T) => Promise<void>
+): Promise<void> {
+  let cursor = 0;
+  const workers = Array.from(
+    { length: Math.min(limit, items.length) },
+    async () => {
+      while (true) {
+        const index = cursor++;
+        if (index >= items.length) return;
+        await fn(items[index]);
+      }
+    }
+  );
+  await Promise.all(workers);
 }
 
 function formatSize(bytes: number): string {
