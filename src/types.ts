@@ -29,6 +29,7 @@ export const DEFAULT_IGNORE_PATTERNS = [
   ".obsidian/workspace.json",
   ".obsidian/workspace-mobile.json",
   ".obsidian/plugins/simple-vault-sync/**",
+  ".obsidian/plugins/*/data.json",
   ".trash/**",
   ".git/**",
   ".DS_Store",

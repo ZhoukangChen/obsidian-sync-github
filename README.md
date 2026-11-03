@@ -101,13 +101,14 @@
 .obsidian/workspace.json
 .obsidian/workspace-mobile.json
 .obsidian/plugins/simple-vault-sync/**
+.obsidian/plugins/*/data.json
 .trash/**
 .git/**
 .DS_Store
 **/.DS_Store
 ```
 
-`.obsidian/plugins/simple-vault-sync/**` 必须保留，否则插件的 `data.json` 可能被同步。Token 本身在 SecretStorage 里，不在 `data.json`，但保留这个忽略规则更安全。
+`.obsidian/plugins/*/data.json` 默认被排除，因为很多插件会把 API Key 存在这里。Token 本身在 SecretStorage 里，不在 `data.json`，但保留这些忽略规则更安全。
 
 ## 限制
 

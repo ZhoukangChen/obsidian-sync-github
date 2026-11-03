@@ -289,6 +289,8 @@ export default class SimpleVaultSyncPlugin
   ): Promise<void> {
     const choice = await new ConflictModal(this.app, conflicts).openAndGetChoice();
     if (choice === "cancel") {
+      this.dirty = true;
+      this.setStatus("有冲突未处理");
       this.notify("已取消，冲突文件没有改动。", 5000);
       return;
     }
@@ -323,7 +325,19 @@ export default class SimpleVaultSyncPlugin
   }
 
   private secretKey(): string {
-    return `simple-vault-sync:${this.app.vault.getName()}`;
+    const name = this.app.vault.getName();
+    const cleaned = name
+      .toLowerCase()
+      .replace(/[^a-z0-9-]/g, "-")
+      .replace(/-+/g, "-")
+      .replace(/^-|-$/g, "");
+    let hash = 0;
+    for (let i = 0; i < name.length; i++) {
+      hash = (hash * 31 + name.charCodeAt(i)) | 0;
+    }
+    const suffix = Math.abs(hash).toString(36);
+    const base = (cleaned || "vault").slice(0, 40);
+    return `simple-vault-sync-${base}-${suffix}`.slice(0, 64);
   }
 
   private async loadPluginData(): Promise<void> {
