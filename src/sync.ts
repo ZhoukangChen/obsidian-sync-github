@@ -92,7 +92,7 @@ export class SyncEngine {
 
     for (const action of compare.pull) {
       if (action.remote) {
-        await this.downloadFile(client, action.remote);
+        await this.downloadFile(client, action.remote, remote.headSha);
         updated.push(action.path);
       } else {
         await this.deleteLocal(action.path);
@@ -109,15 +109,13 @@ export class SyncEngine {
     }
 
     const conflicts = compare.conflicts;
-    const refreshed = changedLocal ? await this.scanLocal() : local;
     if (conflicts.length === 0) {
       this.settings.lastSyncCommit = remote.headSha;
       this.settings.lastSyncTime = Date.now();
-      await this.saveCache(refreshed);
+      this.settings.lastIgnorePatterns = this.settings.ignorePatterns;
       await this.host.save();
       this.host.setStatus("已同步");
     } else {
-      await this.saveCache(refreshed);
       await this.host.save();
       this.host.setStatus(`有 ${conflicts.length} 个冲突`);
     }
@@ -147,10 +145,16 @@ export class SyncEngine {
       throw new SyncConflictError(compare.conflicts, remote.headSha);
     }
 
+    if (compare.pull.length > 0) {
+      throw new Error(
+        `远端有 ${compare.pull.length} 个文件需要先拉取。请先点“同步”或“拉取”，不要直接推送，否则可能覆盖远端改动。`
+      );
+    }
+
     if (compare.push.length === 0) {
       this.settings.lastSyncCommit = remote.headSha;
       this.settings.lastSyncTime = Date.now();
-      await this.saveCache(local);
+      this.settings.lastIgnorePatterns = this.settings.ignorePatterns;
       await this.host.save();
       this.host.setStatus("已同步");
       return {
@@ -218,7 +222,7 @@ export class SyncEngine {
 
     this.settings.lastSyncCommit = commitSha;
     this.settings.lastSyncTime = Date.now();
-    await this.saveCache(local);
+    this.settings.lastIgnorePatterns = this.settings.ignorePatterns;
     await this.host.save();
     this.host.setStatus("已同步");
     this.host.notify(`推送完成：${entries.length} 个文件。`, 5000);
@@ -277,14 +281,14 @@ export class SyncEngine {
             mode: "100644",
             type: "blob",
           };
-          await this.downloadFile(client, remote);
+          await this.downloadFile(client, remote, headSha);
         } else {
           await this.deleteLocal(conflict.path);
         }
       }
       this.settings.lastSyncCommit = headSha;
       this.settings.lastSyncTime = Date.now();
-      await this.saveCache(await this.scanLocal());
+      this.settings.lastIgnorePatterns = this.settings.ignorePatterns;
       await this.host.save();
       this.host.setStatus("已用远端版本覆盖");
       this.host.notify("已保留远端版本。", 5000);
@@ -312,19 +316,30 @@ export class SyncEngine {
     }
 
     const commit = await client.getCommit(ref.object.sha);
-    const files = await client.getTree(commit.tree.sha);
+    const currentIgnore = createIgnoreMatcher(this.settings.ignorePatterns);
+    const baseIgnore = createIgnoreMatcher(
+      this.settings.lastIgnorePatterns || this.settings.ignorePatterns
+    );
+    const files = (await client.getTree(commit.tree.sha)).filter(
+      (file) => !currentIgnore(file.path)
+    );
     const tree = new Map(files.map((file) => [file.path, file]));
 
     let baseTree = new Map<string, RemoteFile>();
     if (this.settings.lastSyncCommit) {
-      if (this.settings.lastSyncCommit === ref.object.sha) {
+      if (
+        this.settings.lastSyncCommit === ref.object.sha &&
+        this.settings.lastIgnorePatterns === this.settings.ignorePatterns
+      ) {
         baseTree = tree;
       } else {
         try {
           const baseCommit = await client.getCommit(
             this.settings.lastSyncCommit
           );
-          const baseFiles = await client.getTree(baseCommit.tree.sha);
+          const baseFiles = (await client.getTree(baseCommit.tree.sha)).filter(
+            (file) => !baseIgnore(file.path)
+          );
           baseTree = new Map(baseFiles.map((file) => [file.path, file]));
         } catch {
           // The previous commit may have been removed by a force push.
@@ -411,12 +426,23 @@ export class SyncEngine {
     };
 
     await walk("");
+
+    const nextCache: Record<string, CachedFile> = {};
+    for (const [path, file] of result) {
+      nextCache[path] = {
+        mtime: file.mtime,
+        size: file.size,
+        sha: file.sha,
+      };
+    }
+    this.data.cache.files = nextCache;
     return result;
   }
 
   private async downloadFile(
     client: GitHubClient,
-    remote: RemoteFile
+    remote: RemoteFile,
+    ref: string
   ): Promise<void> {
     const maxBytes =
       this.settings.maxFileSizeMB > 0
@@ -429,9 +455,24 @@ export class SyncEngine {
         )}，超过设置的 ${this.settings.maxFileSizeMB} MB 上限。`
       );
     }
-    const bytes = await client.getBlob(remote.sha);
+
+    let bytes: ArrayBuffer;
+    try {
+      bytes = await client.getRawFile(remote.path, ref);
+    } catch {
+      // Raw downloads are much faster and do not consume the API quota.
+      // Fall back to the Git Data API if a provider rejects the raw URL.
+      bytes = await client.getBlob(remote.sha);
+    }
+
     await ensureFolder(this.adapter, parentPath(remote.path));
     await this.adapter.writeBinary(remote.path, bytes);
+    const stat = await this.adapter.stat(remote.path);
+    this.data.cache.files[remote.path] = {
+      mtime: stat?.mtime || Date.now(),
+      size: stat?.size || bytes.byteLength,
+      sha: remote.sha,
+    };
   }
 
   private async deleteLocal(path: string): Promise<void> {
@@ -441,19 +482,6 @@ export class SyncEngine {
       // The file may already be gone.
     }
     delete this.data.cache.files[path];
-  }
-
-  private async saveCache(local: Map<string, LocalFile>): Promise<void> {
-    const cache: Record<string, CachedFile> = {};
-    for (const [path, file] of local) {
-      cache[path] = {
-        mtime: file.mtime,
-        size: file.size,
-        sha: file.sha,
-      };
-    }
-    this.data.cache.files = cache;
-    this.data.cache.commit = this.settings.lastSyncCommit;
   }
 }
 

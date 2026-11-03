@@ -15,6 +15,7 @@ export interface PluginSettings {
   deviceName: string;
   lastSyncCommit: string;
   lastSyncTime: number;
+  lastIgnorePatterns: string;
 }
 
 export interface PluginData {
@@ -47,6 +48,7 @@ export const DEFAULT_SETTINGS: PluginSettings = {
   deviceName: "iPad",
   lastSyncCommit: "",
   lastSyncTime: 0,
+  lastIgnorePatterns: "",
 };
 
 export const DEFAULT_DATA: PluginData = {

@@ -252,6 +252,55 @@ export class GitHubClient {
     return decodeBase64(data.content);
   }
 
+  /**
+   * Download a file through raw.githubusercontent.com instead of the Git Data
+   * API. The raw endpoint does not consume the 5000/hour API quota, which
+   * matters for a vault with thousands of attachments.
+   */
+  async getRawFile(path: string, ref: string): Promise<ArrayBuffer> {
+    const encodedPath = path
+      .split("/")
+      .map((part) => encodeURIComponent(part))
+      .join("/");
+    const url = `https://raw.githubusercontent.com/${encodeURIComponent(
+      this.owner
+    )}/${encodeURIComponent(this.repo)}/${encodeURIComponent(
+      ref
+    )}/${encodedPath}`;
+
+    let response;
+    try {
+      response = await requestUrl({
+        url,
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${this.token}`,
+          "User-Agent": "obsidian-sync-github",
+        },
+        throw: false,
+      });
+    } catch (error) {
+      throw new GitHubError(
+        `下载文件失败：${error instanceof Error ? error.message : String(error)}`
+      );
+    }
+
+    if (response.status >= 200 && response.status < 300) {
+      return response.arrayBuffer;
+    }
+
+    if (response.status === 401 || response.status === 403) {
+      throw new GitHubError(
+        "下载文件失败：Token 没有读取这个仓库的权限。",
+        response.status
+      );
+    }
+    throw new GitHubError(
+      `下载文件失败（${response.status}）：${path}`,
+      response.status
+    );
+  }
+
   async createBlob(data: ArrayBuffer): Promise<string> {
     const result = await this.request<{ sha: string }>(
       `${this.repoPath}/git/blobs`,

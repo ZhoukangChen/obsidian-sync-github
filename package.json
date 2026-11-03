@@ -1,6 +1,6 @@
 {
   "name": "obsidian-sync-github",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "用 GitHub 同步 Obsidian 仓库的中文插件",
   "main": "main.js",
   "scripts": {

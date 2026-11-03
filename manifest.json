@@ -1,7 +1,7 @@
 {
   "id": "obsidian-sync-github",
   "name": "Obsidian Sync",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "minAppVersion": "1.11.4",
   "description": "用 GitHub 同步 Obsidian 仓库的中文插件（非官方 Obsidian Sync）。",
   "author": "ch",
