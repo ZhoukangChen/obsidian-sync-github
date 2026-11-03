@@ -1,6 +1,8 @@
-# 简同步（Simple Vault Sync）
+# Obsidian Sync
 
 一个专门给 Obsidian 用的中文 GitHub 同步插件。它不依赖终端、不需要 `.git` 目录，也不会再出现 `refs/heads/master` 这类分支问题。
+
+> 名称按你的要求定为 **Obsidian Sync**。这是第三方 GitHub 同步插件，不是 Obsidian 官方的付费同步服务。
 
 - 中文界面，设置项尽量少
 - 通过 GitHub API 同步，iPad / iPhone / 桌面都能用
@@ -17,8 +19,8 @@
 1. 在 Obsidian 里安装并启用 **BRAT**。
 2. 打开 BRAT 设置，选择 **Add Beta Plugin**。
 3. 填入本仓库地址：
-   `https://github.com/ZhoukangChen/obsidian-simple-vault-sync`
-4. 安装完成后，在“社区插件”里启用 **简同步**。
+   `https://github.com/ZhoukangChen/obsidian-sync-github`
+4. 安装完成后，在“社区插件”里启用 **Obsidian Sync**。
 
 > 如果仓库地址不同，换成你自己的地址即可。
 
@@ -33,10 +35,10 @@
 放到：
 
 ```
-你的 vault/.obsidian/plugins/simple-vault-sync/
+你的 vault/.obsidian/plugins/obsidian-sync-github/
 ```
 
-重启 Obsidian，在“社区插件”里启用“简同步”。
+重启 Obsidian，在“社区插件”里启用“Obsidian Sync”。
 
 ## 配置
 
@@ -59,7 +61,7 @@
 
 打开 Obsidian：
 
-`设置 → 社区插件 → 简同步`
+`设置 → 社区插件 → Obsidian Sync`
 
 填写：
 
@@ -70,7 +72,7 @@
 
 ### 3. 同步
 
-- 点左侧栏的刷新图标，或命令面板执行“简同步：立即同步”
+- 点左侧栏的刷新图标，或命令面板执行“Obsidian Sync：立即同步”
 - 也可以在设置页点“同步”
 
 第一次同步建议先备份 vault。插件会对比本地和远端：
@@ -100,7 +102,7 @@
 ```
 .obsidian/workspace.json
 .obsidian/workspace-mobile.json
-.obsidian/plugins/simple-vault-sync/**
+.obsidian/plugins/obsidian-sync-github/**
 .obsidian/plugins/*/data.json
 .trash/**
 .git/**

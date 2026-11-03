@@ -73,7 +73,7 @@ export class GitHubClient {
       Accept: "application/vnd.github+json",
       Authorization: `Bearer ${this.token}`,
       "X-GitHub-Api-Version": "2022-11-28",
-      "User-Agent": "obsidian-simple-vault-sync",
+      "User-Agent": "obsidian-sync-github",
     };
     if (options.body !== undefined) {
       headers["Content-Type"] = "application/json";

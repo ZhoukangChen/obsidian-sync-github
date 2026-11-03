@@ -28,7 +28,7 @@ export interface PluginData {
 export const DEFAULT_IGNORE_PATTERNS = [
   ".obsidian/workspace.json",
   ".obsidian/workspace-mobile.json",
-  ".obsidian/plugins/simple-vault-sync/**",
+  ".obsidian/plugins/obsidian-sync-github/**",
   ".obsidian/plugins/*/data.json",
   ".trash/**",
   ".git/**",
@@ -43,7 +43,7 @@ export const DEFAULT_SETTINGS: PluginSettings = {
   autoSyncInterval: 0,
   ignorePatterns: DEFAULT_IGNORE_PATTERNS,
   maxFileSizeMB: 50,
-  commitMessage: "简同步: {{device}} {{time}}",
+  commitMessage: "Obsidian Sync: {{device}} {{time}}",
   deviceName: "iPad",
   lastSyncCommit: "",
   lastSyncTime: 0,

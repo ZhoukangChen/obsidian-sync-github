@@ -1,5 +1,5 @@
 {
-  "name": "simple-vault-sync",
+  "name": "obsidian-sync-github",
   "version": "0.1.0",
   "description": "用 GitHub 同步 Obsidian 仓库的中文插件",
   "main": "main.js",

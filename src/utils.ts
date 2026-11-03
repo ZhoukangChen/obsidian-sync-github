@@ -66,7 +66,7 @@ export function renderCommitMessage(
   template: string,
   device: string
 ): string {
-  return (template || "简同步: {{device}} {{time}}")
+  return (template || "Obsidian Sync: {{device}} {{time}}")
     .replace(/\{\{device\}\}/g, device || "设备")
     .replace(/\{\{time\}\}/g, formatTime(Date.now()));
 }

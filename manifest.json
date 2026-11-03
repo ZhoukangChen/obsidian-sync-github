@@ -1,9 +1,9 @@
 {
-  "id": "simple-vault-sync",
-  "name": "简同步",
+  "id": "obsidian-sync-github",
+  "name": "Obsidian Sync",
   "version": "0.1.0",
   "minAppVersion": "1.11.4",
-  "description": "用 GitHub 同步 Obsidian 仓库，中文界面，无需终端和 Git 命令。",
+  "description": "用 GitHub 同步 Obsidian 仓库的中文插件（非官方 Obsidian Sync）。",
   "author": "ch",
   "authorUrl": "",
   "isDesktopOnly": false

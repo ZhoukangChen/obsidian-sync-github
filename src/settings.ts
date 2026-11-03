@@ -16,7 +16,7 @@ export class SimpleVaultSyncSettingTab extends PluginSettingTab {
     containerEl.empty();
     containerEl.addClass("svs-settings");
 
-    containerEl.createEl("h2", { text: "简同步设置" });
+    containerEl.createEl("h2", { text: "Obsidian Sync设置" });
     containerEl.createEl("p", {
       cls: "svs-help",
       text: "用 GitHub 仓库同步这个 vault。插件不需要 Git 命令，也不会修改 .git 目录。",
@@ -175,11 +175,11 @@ export class SimpleVaultSyncSettingTab extends PluginSettingTab {
       .setDesc("支持 {{device}} 和 {{time}} 两个占位符。")
       .addText((text) =>
         text
-          .setPlaceholder("简同步: {{device}} {{time}}")
+          .setPlaceholder("Obsidian Sync: {{device}} {{time}}")
           .setValue(this.plugin.getSettings().commitMessage)
           .onChange(async (value) => {
             this.plugin.getSettings().commitMessage =
-              value.trim() || "简同步: {{device}} {{time}}";
+              value.trim() || "Obsidian Sync: {{device}} {{time}}";
             await this.plugin.save();
           })
       );
@@ -187,7 +187,7 @@ export class SimpleVaultSyncSettingTab extends PluginSettingTab {
     new Setting(containerEl)
       .setName("忽略规则")
       .setDesc(
-        "每行一个 glob。默认排除 workspace、回收站和本插件自己的配置。不要删除 .obsidian/plugins/simple-vault-sync/**，否则 Token 所在的 data.json 可能被同步。"
+        "每行一个 glob。默认排除 workspace、回收站和本插件自己的配置。不要删除 .obsidian/plugins/obsidian-sync-github/**，否则 Token 所在的 data.json 可能被同步。"
       )
       .addTextArea((text) => {
         text.inputEl.rows = 8;

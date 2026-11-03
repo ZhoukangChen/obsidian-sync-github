@@ -31,7 +31,7 @@ export default class SimpleVaultSyncPlugin
       void this.runSync();
     });
 
-    this.addRibbonIcon("refresh-cw", "简同步：立即同步", () => {
+    this.addRibbonIcon("refresh-cw", "Obsidian Sync：立即同步", () => {
       void this.runSync();
     });
 
@@ -123,7 +123,7 @@ export default class SimpleVaultSyncPlugin
 
   setStatus(text: string, error = false): void {
     if (!this.statusBar) return;
-    this.statusBar.setText(`简同步：${text}`);
+    this.statusBar.setText(`Obsidian Sync：${text}`);
     this.statusBar.classList.toggle("svs-status-error", error);
   }
 
@@ -303,7 +303,7 @@ export default class SimpleVaultSyncPlugin
     const message = error instanceof Error ? error.message : String(error);
     this.setStatus("同步失败", true);
     this.notify(message, 10000);
-    console.error("[简同步]", error);
+    console.error("[Obsidian Sync]", error);
   }
 
   private ensureConfigured(): boolean {
@@ -337,7 +337,7 @@ export default class SimpleVaultSyncPlugin
     }
     const suffix = Math.abs(hash).toString(36);
     const base = (cleaned || "vault").slice(0, 40);
-    return `simple-vault-sync-${base}-${suffix}`.slice(0, 64);
+    return `obsidian-sync-github-${base}-${suffix}`.slice(0, 64);
   }
 
   private async loadPluginData(): Promise<void> {
