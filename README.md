@@ -131,10 +131,13 @@
 
 ## 开发
 
+完整架构、同步模型、移动端限制和发布流程见 [DEVELOPMENT.md](DEVELOPMENT.md)。
+
 ```bash
 npm install
 npm run dev    # 监听 src，生成 main.js
 npm run build  # 类型检查 + 生产构建
+npm test       # 三路对比逻辑测试
 ```
 
 把整个项目目录链接到 vault 的插件目录，或在构建后复制 `main.js`、`manifest.json`、`styles.css`。
