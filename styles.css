@@ -1,0 +1,76 @@
+.svs-status {
+  cursor: pointer;
+  user-select: none;
+}
+
+.svs-status-error {
+  color: var(--text-error);
+}
+
+.svs-help {
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  line-height: 1.5;
+}
+
+.svs-ignore-input {
+  width: 100%;
+  min-height: 8em;
+  font-family: var(--font-monospace);
+  font-size: var(--font-ui-small);
+}
+
+.svs-status-box {
+  margin-top: 1.5em;
+  padding: 0.8em 1em;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  background: var(--background-secondary);
+  font-size: var(--font-ui-small);
+  line-height: 1.7;
+}
+
+.svs-conflict-modal {
+  max-width: 680px;
+}
+
+.svs-conflict-list {
+  max-height: 45vh;
+  overflow: auto;
+  margin: 1em 0;
+  padding: 0.6em 0.8em;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  background: var(--background-secondary);
+}
+
+.svs-conflict-item {
+  display: flex;
+  gap: 1em;
+  justify-content: space-between;
+  padding: 0.3em 0;
+  border-bottom: 1px solid var(--background-modifier-border);
+  font-family: var(--font-monospace);
+  font-size: var(--font-ui-small);
+}
+
+.svs-conflict-item:last-child {
+  border-bottom: none;
+}
+
+.svs-conflict-detail {
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.svs-conflict-more {
+  padding-top: 0.5em;
+  color: var(--text-muted);
+}
+
+.svs-conflict-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6em;
+  justify-content: flex-end;
+}
